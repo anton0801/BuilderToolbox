@@ -710,30 +710,30 @@ struct NotificationsView: View {
                     )
                 } else {
                     List {
-                        ForEach(Array(notifications.enumerated())) { idx, notif in
+                        ForEach(notifications) { notif in
                             NotificationRow(notification: notif)
                                 .listRowBackground(Color.clear)
                                 .listRowSeparator(.hidden)
                                 .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
                                 .onTapGesture {
-                                    withAnimation { notifications[idx].isRead = true }
+                                    // withAnimation { notif.isRead = true }
                                 }
-                                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                    Button(role: .destructive) {
-                                        withAnimation { notifications.remove(at: idx) }
-                                    } label: {
-                                        Label("Delete", systemImage: "trash")
-                                    }
-                                }
-                                .swipeActions(edge: .leading) {
-                                    Button {
-                                        withAnimation { notifications[idx].isRead.toggle() }
-                                    } label: {
-                                        Label(notifications[idx].isRead ? "Unread" : "Read",
-                                              systemImage: notifications[idx].isRead ? "envelope.badge.fill" : "envelope.open.fill")
-                                    }
-                                    .tint(.btSecondary)
-                                }
+//                                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+//                                    Button(role: .destructive) {
+//                                        withAnimation { notifications.remove(at: idx) }
+//                                    } label: {
+//                                        Label("Delete", systemImage: "trash")
+//                                    }
+//                                }
+//                                .swipeActions(edge: .leading) {
+//                                    Button {
+//                                        withAnimation { notifications[idx].isRead.toggle() }
+//                                    } label: {
+//                                        Label(notifications[idx].isRead ? "Unread" : "Read",
+//                                              systemImage: notifications[idx].isRead ? "envelope.badge.fill" : "envelope.open.fill")
+//                                    }
+//                                    .tint(.btSecondary)
+//                                }
                         }
                     }
                     .listStyle(.plain)

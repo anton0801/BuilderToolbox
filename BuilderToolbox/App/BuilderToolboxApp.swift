@@ -1,34 +1,33 @@
 import SwiftUI
 
+struct BuilderToolConfig {
+    static let appID = "6761608713"
+    static let devKey = "aq89LxRNQwPDrmD2dgrcN7"
+}
+
 @main
 struct BuilderToolboxApp: App {
-    @StateObject private var appState = AppState()
+    
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    
+    var body: some Scene {
+        WindowGroup {
+            SplashView()
+        }
+    }
+    
+}
+
+struct RootView: View {
+    
+    @StateObject private var appState = ApplicationMainState()
     @StateObject private var projectsVM = ProjectsViewModel()
     @StateObject private var shoppingVM = ShoppingViewModel()
     @StateObject private var tasksVM = TasksViewModel()
 
-    var body: some Scene {
-        WindowGroup {
-            RootView()
-                .environmentObject(appState)
-                .environmentObject(projectsVM)
-                .environmentObject(shoppingVM)
-                .environmentObject(tasksVM)
-                .preferredColorScheme(appState.colorScheme)
-        }
-    }
-}
-
-struct RootView: View {
-    @EnvironmentObject var appState: AppState
-    @State private var showSplash = true
-
     var body: some View {
         ZStack {
-            if showSplash {
-                SplashView()
-                    .transition(.opacity)
-            } else if !appState.hasCompletedOnboarding {
+            if !appState.hasCompletedOnboarding {
                 OnboardingContainerView()
                     .transition(.asymmetric(insertion: .opacity, removal: .opacity))
             } else if !appState.isLoggedIn {
@@ -39,13 +38,12 @@ struct RootView: View {
                     .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .opacity))
             }
         }
-        .animation(.easeInOut(duration: 0.4), value: showSplash)
         .animation(.easeInOut(duration: 0.4), value: appState.isLoggedIn)
         .animation(.easeInOut(duration: 0.4), value: appState.hasCompletedOnboarding)
-        .onAppear {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2.8) {
-                withAnimation { showSplash = false }
-            }
-        }
+        .environmentObject(appState)
+        .environmentObject(projectsVM)
+        .environmentObject(shoppingVM)
+        .environmentObject(tasksVM)
+        .preferredColorScheme(appState.colorScheme)
     }
 }

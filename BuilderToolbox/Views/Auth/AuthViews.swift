@@ -2,7 +2,7 @@ import SwiftUI
 
 // MARK: - Welcome View
 struct WelcomeView: View {
-    @EnvironmentObject var appState: AppState
+    @EnvironmentObject var appState: ApplicationMainState
     @State private var showLogin = false
     @State private var showSignUp = false
     @State private var appear = false
@@ -116,7 +116,7 @@ struct WelcomeFeatureRow: View {
 
 // MARK: - Login View
 struct LoginView: View {
-    @EnvironmentObject var appState: AppState
+    @EnvironmentObject var appState: ApplicationMainState
     @StateObject private var vm = AuthViewModel()
     @Environment(\.dismiss) var dismiss
     @State private var appear = false
@@ -204,7 +204,7 @@ struct LoginView: View {
 
 // MARK: - Sign Up View
 struct SignUpView: View {
-    @EnvironmentObject var appState: AppState
+    @EnvironmentObject var appState: ApplicationMainState
     @StateObject private var vm = AuthViewModel()
     @Environment(\.dismiss) var dismiss
     @State private var appear = false

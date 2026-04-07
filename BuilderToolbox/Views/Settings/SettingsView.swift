@@ -2,7 +2,7 @@ import SwiftUI
 
 // MARK: - Settings View
 struct SettingsView: View {
-    @EnvironmentObject var appState: AppState
+    @EnvironmentObject var appState: ApplicationMainState
     @State private var showDeleteConfirm = false
     @State private var showLogoutConfirm = false
     @State private var showProfile = false
@@ -306,7 +306,7 @@ struct SettingsInfoRow: View {
 
 // MARK: - Profile View
 struct ProfileView: View {
-    @EnvironmentObject var appState: AppState
+    @EnvironmentObject var appState: ApplicationMainState
     @Environment(\.dismiss) var dismiss
     @State private var editedName: String = ""
     @State private var editedEmail: String = ""

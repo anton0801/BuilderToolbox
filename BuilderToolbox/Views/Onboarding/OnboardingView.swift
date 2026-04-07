@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct OnboardingContainerView: View {
-    @EnvironmentObject var appState: AppState
+    @EnvironmentObject var appState: ApplicationMainState
     @State private var currentPage = 0
     @State private var dragOffset: CGFloat = 0
 

